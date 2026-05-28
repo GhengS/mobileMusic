@@ -18,6 +18,21 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * 播放模式枚举
+ * 顺序播放 → 单曲循环 → 列表循环 → 随机播放 → 顺序播放
+ */
+enum class RepeatMode {
+    /** 顺序播放：播完列表即停止 */
+    SEQUENTIAL,
+    /** 单曲循环：反复播放当前歌曲 */
+    SINGLE_LOOP,
+    /** 列表循环：播完列表后从头重新开始 */
+    LIST_LOOP,
+    /** 随机播放：列表循环 + 随机顺序 */
+    SHUFFLE
+}
+
 class MainViewModel(private val repository: MusicRepository) : ViewModel() {
 
     private val _musicList = MutableStateFlow<List<MusicModel>>(emptyList())
@@ -37,6 +52,9 @@ class MainViewModel(private val repository: MusicRepository) : ViewModel() {
 
     private val _currentPositionMs = MutableStateFlow(0L)
     val currentPositionMs: StateFlow<Long> = _currentPositionMs
+
+    private val _repeatMode = MutableStateFlow(RepeatMode.SEQUENTIAL)
+    val repeatMode: StateFlow<RepeatMode> = _repeatMode
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var mediaController: MediaController? = null
@@ -107,6 +125,46 @@ class MainViewModel(private val repository: MusicRepository) : ViewModel() {
                 controller.pause()
             } else {
                 controller.play()
+            }
+        }
+    }
+
+    /**
+     * 循环切换播放模式：顺序 → 单曲循环 → 列表循环 → 随机 → 顺序
+     */
+    fun cycleRepeatMode() {
+        val nextMode = when (_repeatMode.value) {
+            RepeatMode.SEQUENTIAL -> RepeatMode.SINGLE_LOOP
+            RepeatMode.SINGLE_LOOP -> RepeatMode.LIST_LOOP
+            RepeatMode.LIST_LOOP -> RepeatMode.SHUFFLE
+            RepeatMode.SHUFFLE -> RepeatMode.SEQUENTIAL
+        }
+        _repeatMode.value = nextMode
+        applyRepeatMode(nextMode)
+    }
+
+    /**
+     * 将播放模式应用到 MediaController
+     */
+    private fun applyRepeatMode(mode: RepeatMode) {
+        mediaController?.let { controller ->
+            when (mode) {
+                RepeatMode.SEQUENTIAL -> {
+                    controller.repeatMode = Player.REPEAT_MODE_OFF
+                    controller.shuffleModeEnabled = false
+                }
+                RepeatMode.SINGLE_LOOP -> {
+                    controller.repeatMode = Player.REPEAT_MODE_ONE
+                    controller.shuffleModeEnabled = false
+                }
+                RepeatMode.LIST_LOOP -> {
+                    controller.repeatMode = Player.REPEAT_MODE_ALL
+                    controller.shuffleModeEnabled = false
+                }
+                RepeatMode.SHUFFLE -> {
+                    controller.repeatMode = Player.REPEAT_MODE_ALL
+                    controller.shuffleModeEnabled = true
+                }
             }
         }
     }

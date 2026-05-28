@@ -21,6 +21,9 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,6 +40,7 @@ import com.example.musicplayer.data.Lyrics
 import com.example.musicplayer.data.MusicModel
 import com.example.musicplayer.data.MusicRepository
 import com.example.musicplayer.ui.MainViewModel
+import com.example.musicplayer.ui.RepeatMode
 
 class MainActivity : ComponentActivity() {
 
@@ -101,6 +105,7 @@ fun MusicPlayerScreen(viewModel: MainViewModel) {
     val isPlaying by viewModel.isPlaying.collectAsState()
     val lyrics by viewModel.lyrics.collectAsState()
     val currentLyricIndex by viewModel.currentLyricIndex.collectAsState()
+    val repeatMode by viewModel.repeatMode.collectAsState()
 
     // 是否展开歌词面板
     var showLyrics by remember { mutableStateOf(false) }
@@ -130,10 +135,12 @@ fun MusicPlayerScreen(viewModel: MainViewModel) {
                 isPlaying = isPlaying,
                 hasLyrics = lyrics.lines.isNotEmpty(),
                 showLyrics = showLyrics,
+                repeatMode = repeatMode,
                 onTogglePlay = { viewModel.togglePlayPause() },
                 onToggleLyrics = { showLyrics = !showLyrics },
                 onPrevious = { viewModel.playPrevious() },
-                onNext = { viewModel.playNext() }
+                onNext = { viewModel.playNext() },
+                onCycleRepeatMode = { viewModel.cycleRepeatMode() }
             )
         }
     }
@@ -145,9 +152,11 @@ fun MusicPlayerScreen(viewModel: MainViewModel) {
             lyrics = lyrics,
             currentLyricIndex = currentLyricIndex,
             isPlaying = isPlaying,
+            repeatMode = repeatMode,
             onTogglePlay = { viewModel.togglePlayPause() },
             onPrevious = { viewModel.playPrevious() },
             onNext = { viewModel.playNext() },
+            onCycleRepeatMode = { viewModel.cycleRepeatMode() },
             onClose = { showLyrics = false }
         )
     }
@@ -177,10 +186,12 @@ fun BottomControlBar(
     isPlaying: Boolean,
     hasLyrics: Boolean,
     showLyrics: Boolean,
+    repeatMode: RepeatMode,
     onTogglePlay: () -> Unit,
     onToggleLyrics: () -> Unit,
     onPrevious: () -> Unit,
-    onNext: () -> Unit
+    onNext: () -> Unit,
+    onCycleRepeatMode: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -189,7 +200,7 @@ fun BottomControlBar(
     ) {
         Row(
             modifier = Modifier
-                .padding(horizontal = 8.dp, vertical = 8.dp)
+                .padding(horizontal = 4.dp, vertical = 4.dp)
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -199,6 +210,10 @@ fun BottomControlBar(
                 Text(text = music.artist, fontSize = 12.sp, color = Color.Gray, maxLines = 1)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // 播放模式按钮
+                IconButton(onClick = onCycleRepeatMode) {
+                    RepeatModeIcon(repeatMode = repeatMode, size = 20)
+                }
                 // 歌词按钮
                 if (hasLyrics) {
                     IconButton(onClick = onToggleLyrics) {
@@ -234,6 +249,41 @@ fun BottomControlBar(
 }
 
 /**
+ * 播放模式图标组件
+ */
+@Composable
+fun RepeatModeIcon(repeatMode: RepeatMode, size: Int = 20) {
+    val iconColor = when (repeatMode) {
+        RepeatMode.SEQUENTIAL -> Color.Gray
+        RepeatMode.SINGLE_LOOP -> MaterialTheme.colorScheme.primary
+        RepeatMode.LIST_LOOP -> MaterialTheme.colorScheme.primary
+        RepeatMode.SHUFFLE -> MaterialTheme.colorScheme.primary
+    }
+    val icon = when (repeatMode) {
+        RepeatMode.SEQUENTIAL -> Icons.Default.Repeat
+        RepeatMode.SINGLE_LOOP -> Icons.Default.RepeatOne
+        RepeatMode.LIST_LOOP -> Icons.Default.Repeat
+        RepeatMode.SHUFFLE -> Icons.Default.Shuffle
+    }
+    Icon(
+        imageVector = icon,
+        contentDescription = repeatMode.label,
+        tint = iconColor,
+        modifier = Modifier.size(size.dp)
+    )}
+
+/**
+ * 播放模式文本标签
+ */
+private val RepeatMode.label: String
+    get() = when (this) {
+        RepeatMode.SEQUENTIAL -> "顺序播放"
+        RepeatMode.SINGLE_LOOP -> "单曲循环"
+        RepeatMode.LIST_LOOP -> "列表循环"
+        RepeatMode.SHUFFLE -> "随机播放"
+    }
+
+/**
  * 歌词全屏覆盖面板
  */
 @Composable
@@ -242,9 +292,11 @@ fun LyricsOverlay(
     lyrics: Lyrics,
     currentLyricIndex: Int,
     isPlaying: Boolean,
+    repeatMode: RepeatMode,
     onTogglePlay: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
+    onCycleRepeatMode: () -> Unit,
     onClose: () -> Unit
 ) {
     Surface(
@@ -312,6 +364,11 @@ fun LyricsOverlay(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 播放模式按钮
+                IconButton(onClick = onCycleRepeatMode) {
+                    RepeatModeIcon(repeatMode = repeatMode, size = 28)
+                }
+                Spacer(modifier = Modifier.width(16.dp))
                 IconButton(onClick = onPrevious) {
                     Icon(
                         imageVector = Icons.Default.SkipPrevious,
@@ -319,7 +376,7 @@ fun LyricsOverlay(
                         modifier = Modifier.size(48.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(24.dp))
+                Spacer(modifier = Modifier.width(16.dp))
                 IconButton(onClick = onTogglePlay) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Close else Icons.Default.PlayArrow,
@@ -327,7 +384,7 @@ fun LyricsOverlay(
                         modifier = Modifier.size(48.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(24.dp))
+                Spacer(modifier = Modifier.width(16.dp))
                 IconButton(onClick = onNext) {
                     Icon(
                         imageVector = Icons.Default.SkipNext,
